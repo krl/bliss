@@ -24,11 +24,7 @@ for example, the bass in the example:
 this creates the overtone instrument in the background, and creates a form-function that evaluates to an event bundle as so:
  
 #+BEGIN_SRC clojure
-(form) => ({:freq 100, 
-            :amp 0.5, 
-            :action #<sc_events$inst_bundle$fn__5914 bliss.sc_events$inst_bundle$fn__5914@2e7b51dc>, 
-            :type :sc-event, 
-            :len 1}) 
+(form) => ({:freq 100, :amp 0.5, :action #<sc_events$inst_bundle$fn__5914 bliss.sc_events$inst_bundle$fn__5914@2e7b51dc>, :type :sc-event, :len 1}) 
 #+END_SRC
 
 the parameters can be varied by argument keywords like
