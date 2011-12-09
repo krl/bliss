@@ -1,0 +1,89 @@
+* what is
+
+bliss is a domain specific language implemented in clojure for functional sequencing of arbitrary event.
+
+Functional in this case means that the sequence is built by applying a function to the already existing sequence, in order to get the progression. This allows for open-ended variation in a simple way.
+
+To start a process, just define a overtone/sc intstrument bundle, this acts as an event proxy for scheduled overtone sound events
+
+for example, the bass in the example:
+
+* instruments
+
+#+BEGIN_SRC clojure
+(def-inst-bundle form [freq   100
+                       bw     100
+                       len    1
+                       amp    0.5
+                       res    0.5]
+  (let [env  (env-gen (lin-env 0.02 len 0.02) :action FREE)
+        sig  (formant freq (+ freq (* (sin-osc:kr (* len 6) 0) freq)) 1)]        
+    (* amp env sig)))
+#+END_SRC
+
+this creates the overtone instrument in the background, and creates a form-function that evaluates to an event bundle as so:
+ 
+#+BEGIN_SRC clojure
+(form) => ({:freq 100, 
+            :amp 0.5, 
+            :action #<sc_events$inst_bundle$fn__5914 bliss.sc_events$inst_bundle$fn__5914@2e7b51dc>, 
+            :type :sc-event, 
+            :len 1}) 
+#+END_SRC
+
+the parameters can be varied by argument keywords like
+
+#+BEGIN_SRC clojure
+(form :freq 100)
+(form :amp 0.1)
+#+END_SRC
+
+etc.
+
+* combinations
+
+These events are combined with joins and concatetanions, the simplest version could work like this:
+
+#+BEGIN_SRC clojure
+(cc
+  (form :freq 100)
+  (jn
+    (form :freq 200)
+    (form :freq 300)))
+#+END_SRC
+
+This evaluates to a sequence of first one single note at 100hz, then two notes at 200 and 300 sounding together.
+
+#+BEGIN_SRC clojure
+(cc-n 4 (form :freq 100))
+#+END_SRC
+
+This produces 4 tones after each other
+
+#+BEGIN_SRC clojure
+(cc-nv x 4 (form :freq (* 100 x)))
+#+END_SRC
+
+This produces a succession of 4 tones at 100, 200, 300 and 400hz. The *-nv are 1-indexed but also exists in 0-indexed form as *-nv0.
+
+* history-aware functions
+
+Each time a function is called to increment a sequence, the process binds a dynamic variable \*process*, this contains a reference to the history of the sequence. Helper functions exist to ensure this is as pleasant as possible to work with.
+
+the :measure variable is automaticly increased on each invocation, and is used by the functions oneafter, end-of and start-off.
+
+The function
+
+#+BEGIN_SRC clojure
+(oneafter (form :freq 100) (form :freq 200))
+#+END_SRC
+
+Would every other invocation produce a tone at 100 or 200hz.
+
+* TODO
+
+Documentation and bugfixes
+
+The datastructure used for the history of events should be changed to something that handles the demands of this better, at the moment my computer starts to consume more and more cpu while a process is running. This needs to be addressed. 
+
+See this as a proof of concept for now!

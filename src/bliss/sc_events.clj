@@ -31,10 +31,9 @@
        (defn ~i-name [& kvs#]
          (inst-bundle ~proxy-name (merge ~default-map (apply hash-map kvs#)))))))
 
-(defn sample-bundle [channel path & kvs]
+(defn sample-bundle [path & kvs]
   (fn [& kvs-override]
     (inst-bundle buf-player
-                 (merge {:channel channel
-                         :buf (:id (get-sample path))}
+                 (merge {:buf (:id (get-sample path))}
                         (apply hash-map kvs)
                         (apply hash-map kvs-override)))))
