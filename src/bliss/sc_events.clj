@@ -1,5 +1,5 @@
 (ns bliss.sc-events
-  (:use overtone.live
+  (:use [overtone.live :exclude [pause]]
         bliss.sequencer))
 
 (def get-sample

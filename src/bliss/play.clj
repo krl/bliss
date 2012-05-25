@@ -6,9 +6,12 @@
         bliss.helpers))
 
 (def PRESEQUENCE-LENGTH 2)
-(def PRE-WRITE-TIME     0.1)
+(def PRE-WRITE-TIME     1)
 
-(def playing*    (atom false))
+(def playing* (atom '()))
+(def thread*  (atom nil))
+
+(alter-var-root #'*out* (constantly *out*))
 
 ;; sequencing
 
@@ -16,7 +19,7 @@
   (get-end (first history)))
 
 (defn- sort-bundle [bundle]
-  (assert (bundle? bundle))
+  ;; (assert (bundle? bundle))
   (reverse (sort-by get-end bundle)))
 
 (defn- increment-history [process]
@@ -36,11 +39,11 @@
   [process]
   (- (history-length (:history process)) (time-since-start process)))
 
-(defn- write-events [process]
-  "
-write the events that start :last-write > event > (:last-write + PRE-WRITE-TIME)
-returns the updated process
-"
+(defn- write-events
+  "write the events that start :last-write > event > (:last-write + PRE-WRITE-TIME)
+returns the updated process"
+    [process]
+
   (let [last-write (:last-write process)]
     (doseq [event (filter #(and (<= last-write
                                     (get-time %))
@@ -51,58 +54,50 @@ returns the updated process
       ((:action event) event (+ (:start-time process) (* (get-time event) 1000))))
     (assoc process :last-write (+ last-write PRE-WRITE-TIME))))
 
-(defn- thread-function [process process*]
-  (when @playing*
-                                        ;(println "playing!")
-    ;; update reference
-    (swap! process* (fn [_] process))
+(defn- update-process [process]
+  ;; (println "updating process" (:pool-fn process))
+  (cond
+   ;; enough data already sequenced?
+   (< (presequenced process) PRESEQUENCE-LENGTH)
+   (recur (increment-history process))
 
-    (cond
-     ;; enough data already sequenced?
-     (< (presequenced process) PRESEQUENCE-LENGTH)
-     (do ;(println "data")
-       (recur (increment-history process) process*))
+   ;; write events to output
+   (> (- (time-since-start process) (:last-write process) PRE-WRITE-TIME)
+      (- (* PRE-WRITE-TIME 2)))
+   (recur (write-events process))
 
-     ;; write events to output
-     (> (- (time-since-start process) (:last-write process) PRE-WRITE-TIME) (- (* PRE-WRITE-TIME 2)))
-     (do ; (println "write")
-       (recur (write-events process) process*))
-     
-     :else ; recur with identical data in a while
-     (do ;; (println "sleep")
-       (. Thread (sleep 10))
-       (recur process process*)))))
+   ;; return the same value
+   :else process))   
 
-(defn start-process-fn [pool-fn sync]
-  "
-starts a player-process using pool-fn, and returns a reference that is updated
-with current state from the thread-function
-"
-  (swap! playing* (fn [_] true))
-  (let [process* (atom nil)
-        process  {:start-time  (+ (timestamp) 400)
-                  :last-write  0
-                  :playing*    playing*
-                  :history     '()
-                  :pool-fn     pool-fn}]
-    (println "starting thread")
-    (if sync
-      (do
-        (thread-function process process*)
-        (println "thread stopped"))
-      (future
-        (thread-function process process*)
-        (println "thread stopped")))
-    process*))
+(defn- thread-function []
+  (when-not (empty? @playing*)
+    (doall (swap! playing*
+                  #(map update-process %)))
+    (. Thread (sleep 100))
+    (recur)))
 
-(defmacro start-process [pool-fn]
-  "provides a wrapper that allows redefining the top pool function on the fly"
-  `(start-process-fn (count-measures #(~pool-fn)) false))
+(defn start-player-thread []
+  (when-not @thread*
+    (reset! thread*
+            (.start (Thread. (fn []
+                               (println "thread starting")
+                               (thread-function)
+                               (reset! thread* nil)
+                               (println "thread stopped")))))))
+  
+(defn make-process [pool-fn]
+  {:start-time  (+ (timestamp) 400)
+   :last-write  0
+   :history     '()
+   ;; FIXME, find cleaner solution
+   ;; this uses eval to always re-evaluate
+   ;; the function reference, as to allow changing
+   ;; the top level function while running
+   :pool-fn     (fn [] (eval `(~pool-fn)))})
 
-(defmacro start-process-sync [pool-fn]
-  "provides a wrapper that allows redefining the top pool function on the fly"
-  `(start-process-fn (count-measures #(~pool-fn)) true))
+(defn set-processes [& processes]
+  (reset! playing* (map make-process processes))
+  (start-player-thread))
 
 (defn stop-all-processes []
-  (swap! playing* (fn [_] false)))
-
+  (reset! playing* '()))

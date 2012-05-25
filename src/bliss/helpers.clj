@@ -23,4 +23,12 @@
      (println (quote ~@body) " => " result#)
      result#))
   
- 
+
+(defn range+ [& args]
+  (map inc (apply range args)))
+
+(defn rand-int+ [num]
+  (inc (rand-int num)))
+
+(defn rand-int-range [min max]
+  (+ min (rand-int (- max min -1))))
